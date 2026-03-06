@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>앳홈 콘텐츠 캘린더</title>
+  <link rel="stylesheet" href="./athome-tokens.css">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    /* ── 레이아웃 ── */
+    .cal-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: var(--space-page-y) var(--space-page-x);
+    }
+
+    /* ── 헤더 ── */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px var(--space-page-x);
+      border-bottom: var(--border-divider);
+      font-size: var(--size-caption);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--color-bg-white);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .site-header .brand { font-weight: var(--weight-bold); }
+    .site-header .sep   { color: var(--color-gray-mid); }
+    .btn-refresh {
+      margin-left: auto;
+      background: none;
+      border: var(--border-divider);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: var(--size-caption);
+      font-family: var(--font-body-ko);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.15s;
+    }
+    .btn-refresh:hover { background: var(--color-gray-light); }
+
+    /* ── 캘린더 헤더 (월 네비게이션) ── */
+    .cal-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .cal-title {
+      font-family: var(--font-display);
+      font-size: var(--size-h2);
+      font-weight: var(--weight-bold);
+      line-height: var(--leading-tight);
+    }
+    .btn-month {
+      background: var(--color-text-primary);
+      color: var(--color-bg-white);
+      border: none;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s;
+    }
+    .btn-month:hover { opacity: 0.7; }
+
+    /* ── 요일 라벨 ── */
+    .cal-day-labels {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .cal-day-label {
+      font-size: var(--size-caption);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-primary);
+      text-align: center;
+      padding: 4px 0;
+    }
+    .cal-day-label:first-child { color: var(--color-accent); } /* 일요일 */
+
+    /* ── 캘린더 그리드 ── */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-cell {
+      background: var(--color-bg-white);
+      border-radius: 8px;
+      min-height: 110px;
+      padding: 8px;
+      position: relative;
+    }
+    .cal-cell.other-month {
+      opacity: 0.3;
+      background: transparent;
+    }
+    .cal-cell.today {
+      outline: 2px solid var(--color-accent);
+      outline-offset: -2px;
+    }
+    .day-num {
+      font-size: var(--size-caption);
+      font-weight: var(--weight-bold);
+      color: #AAAAAA;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .cal-cell.today .day-num {
+      color: var(--color-accent);
+    }
+
+    /* ── 이벤트 카드 ── */
+    .event-card {
+      border-radius: 5px;
+      padding: 4px 7px;
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.4;
+      cursor: default;
+      position: relative;
+      word-break: keep-all;
+    }
+    .event-card.linkedin {
+      background-color: var(--color-dark);
+      color: #fff;
+    }
+    .event-card.blog {
+      background-color: var(--color-accent);
+      color: #fff;
+    }
+    .channel-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* ── 툴팁 ── */
+    .tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      background: var(--color-text-primary);
+      color: #fff;
+      padding: 8px 10px;
+      border-radius: var(--radius-card);
+      font-size: 11px;
+      line-height: 1.6;
+      width: 210px;
+      z-index: 100;
+      white-space: pre-wrap;
+      pointer-events: none;
+    }
+    .event-card:hover { cursor: pointer; }
+    .event-card:hover .tooltip { display: block; }
+
+    /* ── 발행 예정 요약 ── */
+    .upcoming-section {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: var(--border-divider);
+      display: flex;
+      gap: 12px;
+    }
+    .upcoming-card {
+      background: var(--color-bg-white);
+      border-radius: var(--radius-card);
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .upcoming-card .u-num {
+      font-family: var(--font-display);
+      font-size: var(--size-h2);
+      font-weight: var(--weight-bold);
+      line-height: var(--leading-tight);
+      color: var(--color-accent);
+    }
+    .upcoming-card .u-num.dark { color: var(--color-dark); }
+    .upcoming-card .u-label {
+      font-size: var(--size-caption);
+      color: #AAAAAA;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── 미정 항목 ── */
+    .unscheduled-section {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: var(--border-divider);
+    }
+    .section-label {
+      font-size: var(--size-caption);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--color-gray-mid);
+      font-weight: var(--weight-bold);
+      margin-bottom: 12px;
+    }
+    .unscheduled-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .unscheduled-list .event-card {
+      display: inline-block;
+      margin-top: 0;
+    }
+
+    /* ── 로딩 / 에러 ── */
+    .status-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--color-gray-mid);
+      font-size: var(--size-body);
+    }
+
+    /* ── 채널 필터 ── */
+    .filter-group {
+      display: flex;
+      gap: 6px;
+      margin-left: auto;
+      align-items: center;
+    }
+    .btn-filter {
+      border: 1px solid var(--color-gray-mid);
+      background: none;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: var(--size-caption);
+      font-family: var(--font-body-ko);
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: all 0.15s;
+      color: var(--color-text-primary);
+    }
+    .btn-filter:hover { border-color: var(--color-text-primary); }
+    .btn-filter.active {
+      background: var(--color-text-primary);
+      color: #fff;
+      border-color: var(--color-text-primary);
+    }
+    .btn-filter.active.linkedin {
+      background: var(--color-dark);
+      border-color: var(--color-dark);
+    }
+    .btn-filter.active.blog {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+    }
+
+    /* ── 이번 주 강조 ── */
+    .cal-cell.this-week {
+      background: #fff8f5;
+      outline: 1px solid #fcd9cc;
+      outline-offset: -1px;
+    }
+    .cal-cell.this-week.today {
+      outline: 2px solid var(--color-accent);
+    }
+
+    /* ── 과거 항목 dim ── */
+    .event-card.past {
+      opacity: 0.4;
+    }
+
+    /* ── URL 있는 카드 ── */
+    .event-card.has-url:hover {
+      filter: brightness(1.1);
+    }
+    .event-card .url-hint {
+      font-size: 9px;
+      opacity: 0.6;
+      display: block;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body class="bg-cool-gray">
+
+  <!-- 헤더 -->
+  <header class="site-header">
+    <span class="brand">ATHOME</span>
+    <span class="sep">/</span>
+    <span>콘텐츠 캘린더</span>
+    <a
+      href="https://docs.google.com/spreadsheets/d/1bnLQypIuMb0gw0RxzwYVkqGBdN8KSA4_TXSuogaOWak/edit?gid=658998951#gid=658998951"
+      target="_blank"
+      style="color:var(--color-gray-mid);text-decoration:none;font-size:var(--size-caption);letter-spacing:0.04em;"
+      onmouseover="this.style.color='var(--color-text-primary)'"
+      onmouseout="this.style.color='var(--color-gray-mid)'"
+    >시트 열기 ↗</a>
+    <button class="btn-refresh" id="btn-refresh">↻ 새로고침</button>
+  </header>
+
+  <div class="cal-wrap">
+
+    <!-- 캘린더 네비게이션 -->
+    <div class="cal-header">
+      <button class="btn-month" id="btn-prev">‹</button>
+      <h1 class="cal-title" id="cal-title">로딩 중...</h1>
+      <button class="btn-month" id="btn-next">›</button>
+      <div class="filter-group">
+        <button class="btn-filter active" data-filter="all">전체</button>
+        <button class="btn-filter linkedin" data-filter="링크드인">링크드인</button>
+        <button class="btn-filter blog" data-filter="블로그">블로그</button>
+      </div>
+    </div>
+
+    <!-- 요일 라벨 -->
+    <div class="cal-day-labels">
+      <div class="cal-day-label">일</div>
+      <div class="cal-day-label">월</div>
+      <div class="cal-day-label">화</div>
+      <div class="cal-day-label">수</div>
+      <div class="cal-day-label">목</div>
+      <div class="cal-day-label">금</div>
+      <div class="cal-day-label">토</div>
+    </div>
+
+    <!-- 캘린더 그리드 -->
+    <div class="cal-grid" id="cal-grid">
+      <div class="status-msg">데이터 불러오는 중...</div>
+    </div>
+
+    <!-- 발행 예정 요약 -->
+    <div class="upcoming-section" id="upcoming-section"></div>
+
+    <!-- 미정 항목 -->
+    <div class="unscheduled-section">
+      <p class="section-label">날짜 미정</p>
+      <div class="unscheduled-list" id="unscheduled-list"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const SHEET_CSV_URL =
+      'https://docs.google.com/spreadsheets/d/1bnLQypIuMb0gw0RxzwYVkqGBdN8KSA4_TXSuogaOWak/export?format=csv&gid=658998951';
+
+    let currentYear, currentMonth;
+    let allEvents  = [];
+    let activeFilter = 'all';
+
+    /* ── 유틸: 이번 주 월~일 범위 ── */
+    function getThisWeekRange() {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const day  = now.getDay(); // 0=일
+      const mon  = new Date(now); mon.setDate(now.getDate() - day);
+      const sun  = new Date(mon); sun.setDate(mon.getDate() + 6);
+      return { mon, sun };
+    }
+
+    /* ── 데이터 로드 ── */
+    async function loadEvents() {
+      const res = await fetch(SHEET_CSV_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+      return data.map(row => ({
+        date:    (row['시기']       || '').trim(),
+        title:   (row['주요 주제']  || '').trim(),
+        channel: (row['채널']       || '').trim(),
+        note:    (row['비고']       || '').trim(),
+        url:     (row['URL']        || row['url'] || row['링크'] || '').trim(),
+      }));
+    }
+
+    /* ── 카드 생성 ── */
+    function makeCard(ev) {
+      const isPast = ev.date && new Date(ev.date) < (() => {
+        const t = new Date(); t.setHours(0,0,0,0); return t;
+      })();
+
+      const card = document.createElement('div');
+      const cls  = ev.channel === '링크드인' ? 'linkedin' : 'blog';
+      card.className = `event-card ${cls}${isPast ? ' past' : ''}${ev.url ? ' has-url' : ''}`;
+
+      // URL 있으면 클릭으로 이동
+      if (ev.url) {
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => window.open(ev.url, '_blank'));
+      }
+
+      const badge = document.createElement('span');
+      badge.className = 'channel-badge';
+      badge.textContent = ev.channel;
+      card.appendChild(badge);
+
+      const titleEl = document.createElement('span');
+      titleEl.textContent = ev.title;
+      card.appendChild(titleEl);
+
+      if (ev.url) {
+        const hint = document.createElement('span');
+        hint.className = 'url-hint';
+        hint.textContent = '↗ 바로가기';
+        card.appendChild(hint);
+      }
+
+      if (ev.note) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        tooltip.textContent = ev.note;
+        card.appendChild(tooltip);
+      }
+      return card;
+    }
+
+    /* ── 캘린더 렌더링 ── */
+    function renderCalendar(year, month, events) {
+      document.getElementById('cal-title').textContent =
+        `${year}년 ${month + 1}월`;
+
+      const filtered = activeFilter === 'all'
+        ? events
+        : events.filter(e => e.channel === activeFilter);
+
+      const grid = document.getElementById('cal-grid');
+      grid.innerHTML = '';
+
+      const firstDay    = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today       = new Date();
+      const { mon, sun } = getThisWeekRange();
+
+      // 이전 달 빈 셀
+      for (let i = 0; i < firstDay; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell other-month';
+        grid.appendChild(cell);
+      }
+
+      // 이번 달 날짜 셀
+      for (let d = 1; d <= daysInMonth; d++) {
+        const cell    = document.createElement('div');
+        const cellDate = new Date(year, month, d);
+        const dateStr  = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+        cell.className = 'cal-cell';
+
+        const isToday =
+          today.getFullYear() === year &&
+          today.getMonth()    === month &&
+          today.getDate()     === d;
+        if (isToday) cell.classList.add('today');
+
+        // 이번 주 강조
+        if (cellDate >= mon && cellDate <= sun) cell.classList.add('this-week');
+
+        const dayNum = document.createElement('span');
+        dayNum.className = 'day-num';
+        dayNum.textContent = d;
+        cell.appendChild(dayNum);
+
+        filtered
+          .filter(e => e.date === dateStr)
+          .forEach(ev => cell.appendChild(makeCard(ev)));
+
+        grid.appendChild(cell);
+      }
+    }
+
+    /* ── 미정 항목 렌더링 ── */
+    function renderUnscheduled(events) {
+      const filtered = activeFilter === 'all'
+        ? events
+        : events.filter(e => e.channel === activeFilter);
+      const list  = document.getElementById('unscheduled-list');
+      const items = filtered.filter(e => !e.date);
+      if (items.length === 0) {
+        list.innerHTML = '<span class="text-caption">없음</span>';
+      } else {
+        list.innerHTML = '';
+        items.forEach(ev => list.appendChild(makeCard(ev)));
+      }
+    }
+
+    /* ── 발행 예정 카운트 ── */
+    function renderUpcoming(events) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const upcoming  = events.filter(e => e.date && new Date(e.date) >= today);
+      const total     = upcoming.length;
+      const linkedin  = upcoming.filter(e => e.channel === '링크드인').length;
+      const blog      = upcoming.filter(e => e.channel === '블로그').length;
+
+      document.getElementById('upcoming-section').innerHTML = `
+        <div class="upcoming-card">
+          <span class="u-num">${total}</span>
+          <span class="u-label">전체 발행 예정</span>
+        </div>
+        <div class="upcoming-card">
+          <span class="u-num dark">${linkedin}</span>
+          <span class="u-label">링크드인</span>
+        </div>
+        <div class="upcoming-card">
+          <span class="u-num">${blog}</span>
+          <span class="u-label">블로그</span>
+        </div>
+      `;
+    }
+
+    /* ── 전체 렌더 ── */
+    function renderAll() {
+      renderCalendar(currentYear, currentMonth, allEvents);
+      renderUnscheduled(allEvents);
+      renderUpcoming(allEvents);
+    }
+
+    /* ── 채널 필터 ── */
+    document.querySelectorAll('.btn-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeFilter = btn.dataset.filter;
+        document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderAll();
+      });
+    });
+
+    /* ── 월 이동 ── */
+    document.getElementById('btn-prev').addEventListener('click', () => {
+      currentMonth--;
+      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+      renderAll();
+    });
+    document.getElementById('btn-next').addEventListener('click', () => {
+      currentMonth++;
+      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+      renderAll();
+    });
+
+    /* ── 새로고침 ── */
+    document.getElementById('btn-refresh').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-refresh');
+      btn.textContent = '↻ 불러오는 중...';
+      btn.disabled = true;
+      try {
+        allEvents = await loadEvents();
+        renderAll();
+      } catch (e) {
+        alert('데이터 로드 실패: ' + e.message);
+      } finally {
+        btn.textContent = '↻ 새로고침';
+        btn.disabled = false;
+      }
+    });
+
+    /* ── 초기 로드 ── */
+    document.addEventListener('DOMContentLoaded', async () => {
+      const now = new Date();
+      currentYear  = now.getFullYear();
+      currentMonth = now.getMonth();
+
+      try {
+        allEvents = await loadEvents();
+        renderAll();
+      } catch (e) {
+        document.getElementById('cal-grid').innerHTML =
+          `<div class="status-msg" style="grid-column:1/-1">
+            ⚠️ 데이터 로드 실패<br>
+            <small>${e.message}</small><br><br>
+            <small>로컬에서 열 경우 <code>python3 -m http.server 8080</code> 후<br>
+            <a href="http://localhost:8080">localhost:8080</a> 접속하세요</small>
+          </div>`;
+      }
+    });
+  </script>
+</body>
+</html>
