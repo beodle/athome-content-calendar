@@ -21,7 +21,7 @@
   --color-bg:           #E3E4E0;   /* 커버/섹션 배경 쿨 그레이 */
   --color-bg-white:     #FFFFFF;   /* 콘텐츠 슬라이드 배경 */
   --color-text-primary: #0D0D0D;   /* 본문, 제목 */
-  --color-accent:       #F04A00;   /* 유일한 포인트 컬러 — 차트, KPI, 화살표 */
+  --color-accent:       #FF5D00;   /* 유일한 포인트 컬러 — 차트, KPI, 화살표 */
   --color-dark:         #1A1A1A;   /* 섹션 디바이더 다크 배경 */
   --color-gray-mid:     #CCCCCC;   /* 차트 레퍼런스 바, 구분선 */
   --color-gray-light:   #F2F2F0;   /* 카드 배경, 서브 영역 */
