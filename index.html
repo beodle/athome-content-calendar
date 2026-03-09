@@ -346,6 +346,11 @@
     <!-- 발행 예정 요약 -->
     <div class="upcoming-section" id="upcoming-section"></div>
 
+    <!-- 미정 항목 -->
+    <div class="unscheduled-section">
+      <p class="section-label">날짜 미정</p>
+      <div class="unscheduled-list" id="unscheduled-list"></div>
+    </div>
 
   </div>
 
@@ -521,6 +526,7 @@
     /* ── 전체 렌더 ── */
     function renderAll() {
       renderCalendar(currentYear, currentMonth, allEvents);
+      renderUnscheduled(allEvents);
       renderUpcoming(allEvents);
     }
 
