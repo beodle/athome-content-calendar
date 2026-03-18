@@ -137,14 +137,7 @@
       position: relative;
       word-break: keep-all;
     }
-    .event-card.linkedin {
-      background-color: var(--color-dark);
-      color: #fff;
-    }
-    .event-card.blog {
-      background-color: var(--color-accent);
-      color: #fff;
-    }
+    /* 채널 색상은 JS에서 inline style로 적용 */
     .channel-badge {
       font-size: 9px;
       font-weight: 700;
@@ -259,17 +252,8 @@
     .btn-filter:hover { border-color: var(--color-text-primary); }
     .btn-filter:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
     .btn-filter.active {
-      background: var(--color-text-primary);
       color: #fff;
-      border-color: var(--color-text-primary);
-    }
-    .btn-filter.active.linkedin {
-      background: var(--color-dark);
-      border-color: var(--color-dark);
-    }
-    .btn-filter.active.blog {
-      background: var(--color-accent);
-      border-color: var(--color-accent);
+      /* background·border-color는 JS에서 채널 색상으로 주입 */
     }
 
     /* ── 이번 주 강조 ── */
@@ -328,10 +312,8 @@
       <button class="btn-month" id="btn-prev" aria-label="이전 달">‹</button>
       <h1 class="cal-title" id="cal-title">로딩 중…</h1>
       <button class="btn-month" id="btn-next" aria-label="다음 달">›</button>
-      <div class="filter-group">
-        <button class="btn-filter active" data-filter="all">전체</button>
-        <button class="btn-filter linkedin" data-filter="링크드인">링크드인</button>
-        <button class="btn-filter blog" data-filter="블로그">블로그</button>
+      <div class="filter-group" id="filter-group">
+        <button class="btn-filter active" data-filter="all" style="background:#1A1A1A;border-color:#1A1A1A;">전체</button>
       </div>
     </div>
 
@@ -360,9 +342,68 @@
     const SHEET_CSV_URL =
       'https://docs.google.com/spreadsheets/d/1bnLQypIuMb0gw0RxzwYVkqGBdN8KSA4_TXSuogaOWak/export?format=csv&gid=658998951';
 
+    /* ── 채널 색상 ── */
+    // 알려진 채널은 브랜드 색상 고정, 나머지는 팔레트에서 순서대로 배정
+    const PRESET_COLORS = { '링크드인': '#1A1A1A', '블로그': '#FF5D00' };
+    const FALLBACK_PALETTE = ['#2563EB','#059669','#7C3AED','#B45309','#DB2777','#0891B2'];
+    let channelColors = {};   // { '채널명': '#hex' }
+
     let currentYear, currentMonth;
     let allEvents  = [];
     let activeFilter = 'all';
+
+    /* ── 채널 색상 맵 빌드 ── */
+    function buildChannelColors(events) {
+      const channels = [...new Set(events.map(e => e.channel).filter(Boolean))];
+      let paletteIdx = 0;
+      channelColors = {};
+      channels.forEach(ch => {
+        channelColors[ch] = PRESET_COLORS[ch] || FALLBACK_PALETTE[paletteIdx++ % FALLBACK_PALETTE.length];
+      });
+    }
+
+    /* ── 필터 버튼 동적 렌더 ── */
+    function renderFilters() {
+      const group = document.getElementById('filter-group');
+      group.innerHTML = '';
+
+      // 전체 버튼
+      const allBtn = document.createElement('button');
+      allBtn.className = 'btn-filter active';
+      allBtn.dataset.filter = 'all';
+      allBtn.textContent = '전체';
+      allBtn.style.background = '#1A1A1A';
+      allBtn.style.borderColor = '#1A1A1A';
+      group.appendChild(allBtn);
+
+      // 채널별 버튼
+      Object.entries(channelColors).forEach(([ch, color]) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-filter';
+        btn.dataset.filter = ch;
+        btn.dataset.color = color;
+        btn.textContent = ch;
+        group.appendChild(btn);
+      });
+
+      // 이벤트 위임
+      group.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-filter');
+        if (!btn) return;
+        activeFilter = btn.dataset.filter;
+        group.querySelectorAll('.btn-filter').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = '';
+          b.style.borderColor = '';
+          b.style.color = '';
+        });
+        btn.classList.add('active');
+        const color = btn.dataset.color || '#1A1A1A';
+        btn.style.background = color;
+        btn.style.borderColor = color;
+        renderAll();
+      });
+    }
 
     /* ── 유틸: 이번 주 월~일 범위 ── */
     function getThisWeekRange() {
@@ -396,8 +437,10 @@
       })();
 
       const card = document.createElement('div');
-      const cls  = ev.channel === '링크드인' ? 'linkedin' : 'blog';
-      card.className = `event-card ${cls}${isPast ? ' past' : ''}${ev.url ? ' has-url' : ''}`;
+      card.className = `event-card${isPast ? ' past' : ''}${ev.url ? ' has-url' : ''}`;
+      const color = channelColors[ev.channel] || '#888';
+      card.style.backgroundColor = color;
+      card.style.color = '#fff';
 
       // URL 있으면 클릭으로 이동
       if (ev.url) {
@@ -499,30 +542,28 @@
       }
     }
 
-    /* ── 발행 예정 카운트 ── */
+    /* ── 발행 예정 카운트 (채널 동적) ── */
     function renderUpcoming(events) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const upcoming = events.filter(e => e.date && new Date(e.date) >= today);
 
-      const upcoming  = events.filter(e => e.date && new Date(e.date) >= today);
-      const total     = upcoming.length;
-      const linkedin  = upcoming.filter(e => e.channel === '링크드인').length;
-      const blog      = upcoming.filter(e => e.channel === '블로그').length;
-
-      document.getElementById('upcoming-section').innerHTML = `
+      const cards = [`
         <div class="upcoming-card">
-          <span class="u-num">${total}</span>
+          <span class="u-num">${upcoming.length}</span>
           <span class="u-label">전체 발행 예정</span>
-        </div>
-        <div class="upcoming-card">
-          <span class="u-num dark">${linkedin}</span>
-          <span class="u-label">링크드인</span>
-        </div>
-        <div class="upcoming-card">
-          <span class="u-num">${blog}</span>
-          <span class="u-label">블로그</span>
-        </div>
-      `;
+        </div>`];
+
+      Object.entries(channelColors).forEach(([ch, color]) => {
+        const count = upcoming.filter(e => e.channel === ch).length;
+        cards.push(`
+          <div class="upcoming-card">
+            <span class="u-num" style="color:${color}">${count}</span>
+            <span class="u-label">${ch}</span>
+          </div>`);
+      });
+
+      document.getElementById('upcoming-section').innerHTML = cards.join('');
     }
 
     /* ── 전체 렌더 ── */
@@ -531,15 +572,7 @@
       renderUpcoming(allEvents);
     }
 
-    /* ── 채널 필터 ── */
-    document.querySelectorAll('.btn-filter').forEach(btn => {
-      btn.addEventListener('click', () => {
-        activeFilter = btn.dataset.filter;
-        document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        renderAll();
-      });
-    });
+    /* ── 채널 필터: renderFilters() 에서 이벤트 위임으로 처리 ── */
 
     /* ── 월 이동 ── */
     document.getElementById('btn-prev').addEventListener('click', () => {
@@ -560,6 +593,8 @@
       btn.disabled = true;
       try {
         allEvents = await loadEvents();
+        buildChannelColors(allEvents);
+        renderFilters();
         renderAll();
       } catch (e) {
         alert('데이터 로드 실패: ' + e.message);
@@ -577,6 +612,8 @@
 
       try {
         allEvents = await loadEvents();
+        buildChannelColors(allEvents);
+        renderFilters();
         renderAll();
       } catch (e) {
         document.getElementById('cal-grid').innerHTML =
