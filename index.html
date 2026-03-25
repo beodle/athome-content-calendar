@@ -714,6 +714,63 @@
     }
 
     /* ────────────────────────────────────────────
+       이웃 달 오버플로우 셀 생성
+    ──────────────────────────────────────────── */
+    function makeOverflowCell(dayNum, dateStr, targetYear, targetMonth) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell other-month';
+      cell.dataset.date = dateStr;
+
+      const dayEl = document.createElement('span');
+      dayEl.className = 'day-num';
+      dayEl.textContent = dayNum;
+      cell.appendChild(dayEl);
+
+      // 해당 날짜 이벤트 표시 (흐리게)
+      const filtered = activeFilter === 'all' ? allEvents : allEvents.filter(e => e.channel === activeFilter);
+      filtered.filter(e => e.date === dateStr).forEach(ev => cell.appendChild(makeCard(ev)));
+
+      // 드롭 타겟 (편집 모드)
+      if (accessToken) {
+        cell.addEventListener('dragover', e => {
+          if (draggingRowIndex == null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          cell.classList.add('drag-over');
+        });
+        cell.addEventListener('dragleave', e => {
+          if (cell.contains(e.relatedTarget)) return;
+          cell.classList.remove('drag-over');
+        });
+        cell.addEventListener('drop', async e => {
+          e.preventDefault();
+          cell.classList.remove('drag-over');
+
+          const rowIndex = parseInt(e.dataTransfer.getData('text/plain'));
+          const ev = allEvents.find(ev => ev._rowIndex === rowIndex);
+          if (!ev || ev.date === dateStr) return;
+
+          const oldDate = ev.date;
+          ev.date = dateStr;
+          currentYear  = targetYear;
+          currentMonth = targetMonth;
+          renderAll();
+
+          try {
+            showToast('저장 중…');
+            await updateEventDate(ev, dateStr);
+            showToast('✓ 저장 완료');
+          } catch (err) {
+            showToast('저장 실패: ' + err.message, true);
+            ev.date = oldDate;
+            renderAll();
+          }
+        });
+      }
+      return cell;
+    }
+
+    /* ────────────────────────────────────────────
        캘린더 렌더링
     ──────────────────────────────────────────── */
     function renderCalendar(year, month, events) {
@@ -731,11 +788,14 @@
       const today       = new Date();
       const { mon, sun } = getThisWeekRange();
 
-      // 이전 달 빈 셀
+      // 이전 달 날짜 셀 (흐리게)
+      const prevMonthDays = new Date(year, month, 0).getDate();
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear  = month === 0 ? year - 1 : year;
       for (let i = 0; i < firstDay; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'cal-cell other-month';
-        grid.appendChild(cell);
+        const d = prevMonthDays - firstDay + 1 + i;
+        const dateStr = `${prevYear}-${String(prevMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        grid.appendChild(makeOverflowCell(d, dateStr, prevYear, prevMonth));
       }
 
       // 이번 달 날짜 셀
@@ -804,6 +864,16 @@
         }
 
         grid.appendChild(cell);
+      }
+
+      // 다음 달 날짜 셀 (흐리게, 마지막 행 채우기)
+      const totalCells = firstDay + daysInMonth;
+      const remainder  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+      const nextMonth = month === 11 ? 0  : month + 1;
+      const nextYear  = month === 11 ? year + 1 : year;
+      for (let i = 1; i <= remainder; i++) {
+        const dateStr = `${nextYear}-${String(nextMonth + 1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+        grid.appendChild(makeOverflowCell(i, dateStr, nextYear, nextMonth));
       }
     }
 
